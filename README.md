@@ -1,6 +1,6 @@
 # gogetter
 
-> One more opinionated HTTP client 
+> An incremental HTTP client 
 
 1. Start small and easily write small requests;
 2. Save and variabilize your most used requests if needed;
