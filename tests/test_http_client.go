@@ -11,12 +11,13 @@ type request struct {
 	Method         string
 	Url            string
 	StringResponse string
+	ResponseCode   int
 }
 
 func (r request) Response() *http.Response {
 	return &http.Response{
 		Status:     "200 OK",
-		StatusCode: 200,
+		StatusCode: r.ResponseCode,
 		Body:       io.NopCloser(strings.NewReader(r.StringResponse)),
 	}
 }
@@ -47,9 +48,10 @@ type TestClientOption interface {
 }
 
 type SubstitutedRequestOption struct {
-	Method   string
-	Url      string
-	Response string
+	Method       string
+	Url          string
+	Response     string
+	ResponseCode int
 }
 
 func (s SubstitutedRequestOption) Apply(t TestHttpClient) TestHttpClient {
@@ -57,6 +59,7 @@ func (s SubstitutedRequestOption) Apply(t TestHttpClient) TestHttpClient {
 		Method:         s.Method,
 		Url:            s.Url,
 		StringResponse: s.Response,
+		ResponseCode:   s.ResponseCode,
 	})
 	return t
 }

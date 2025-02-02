@@ -20,7 +20,7 @@ const (
 	helpHeight = 5
 )
 
-var gogetter = app.NewGogetter(http.DefaultClient)
+var gogetter app.Gogetter
 
 var (
 	cursorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("212"))
@@ -164,7 +164,9 @@ func (m model) executeRequest() (model, []tea.Cmd) {
 		}
 		method := input[0]
 		url := input[1]
-		resp, err := gogetter.Execute(method, url)
+		var resp *http.Response
+		var err error
+		gogetter, resp, err = gogetter.Execute(method, url)
 		var response []byte
 
 		if resp != nil {
@@ -270,7 +272,29 @@ func (m model) View() string {
 }
 
 func main() {
-	if _, err := tea.NewProgram(newModel(), tea.WithAltScreen()).Run(); err != nil {
+	historyFileReader, err := os.Open("gogetter_history.json")
+	defer historyFileReader.Close()
+	if err != nil {
+		if !os.IsNotExist(err) {
+			slog.Error("error while opening history file", slog.Any("error", err))
+			os.Exit(1)
+		}
+	}
+	historyWritingFunc := func(toWrite []byte) error {
+		historyFileWriter, err := os.Create("gogetter_history.json")
+		if err != nil {
+			return err
+		}
+		defer historyFileWriter.Close()
+		_, err = historyFileWriter.Write(toWrite)
+		return err
+	}
+	gogetter, err = app.NewGogetter(http.DefaultClient, historyFileReader, historyWritingFunc)
+	if err != nil {
+		slog.Error("error while creating new gogetter", slog.Any("error", err))
+		os.Exit(1)
+	}
+	if _, err = tea.NewProgram(newModel(), tea.WithAltScreen()).Run(); err != nil {
 		slog.Error("error while running program", slog.Any("error", err))
 		os.Exit(1)
 	}
