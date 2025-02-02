@@ -1,0 +1,25 @@
+name: Continuous check
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+jobs:
+  build_and_test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+      - name: Install dependencies
+        run: go get .
+      - name: Build
+        run: go build -v ./...
+      - name: Test
+        run: go test ./... > TestResults.txt
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: Test-results
+          path: TestResults.txt
