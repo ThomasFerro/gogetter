@@ -23,7 +23,7 @@ const (
 var Gogetter app.Gogetter
 
 type keymap = struct {
-	next, prev, execute, toggleHistory, toggleSavedRequests, quit, enter key.Binding
+	next, prev, execute, save, toggleHistory, toggleSavedRequests, quit, enter key.Binding
 }
 
 type focusedArea int
@@ -70,6 +70,10 @@ func NewModel(gogetter app.Gogetter) model {
 			next: key.NewBinding(
 				key.WithKeys("tab"),
 				key.WithHelp("tab", "next"),
+			),
+			save: key.NewBinding(
+				key.WithKeys("alt+s"),
+				key.WithHelp("alt+s", "save request"),
 			),
 			toggleHistory: key.NewBinding(
 				key.WithKeys("alt+h"),
@@ -120,28 +124,35 @@ func (m model) newRequest() (model, []tea.Cmd) {
 	}}
 }
 
+func (m model) currentRequest() (app.Request, bool) {
+	// TODO: Extract and extend the parsing
+	input := strings.Split(m.requestTextarea.Value(), " ")
+	if len(input) < 2 {
+		return app.Request{}, false
+	}
+	method := input[0]
+	url := input[1]
+	return app.Request{Method: method, Url: url}, true
+}
+
 func (m model) executeRequest() (model, []tea.Cmd) {
 	if m.ongoingRequest {
 		return m, []tea.Cmd{}
 	}
 	m.ongoingRequest = true
 	return m, []tea.Cmd{func() tea.Msg {
-		// TODO: Extract and extend the parsing
-		input := strings.Split(m.requestTextarea.Value(), " ")
-		if len(input) < 2 {
+		request, ok := m.currentRequest()
+		if !ok {
 			return nil
 		}
-		method := input[0]
-		url := input[1]
 		var resp *http.Response
 		var err error
 		var requestAndResponse app.RequestAndResponse
-		Gogetter, requestAndResponse, resp, err = Gogetter.Execute(method, url)
+		Gogetter, requestAndResponse, resp, err = Gogetter.Execute(request.Method, request.Url)
 		var response []byte
 
 		if resp != nil {
 			defer resp.Body.Close()
-			var err error
 			response, err = io.ReadAll(resp.Body)
 			if err != nil {
 				return responseMsg{err: err, requestAndResponse: requestAndResponse, responseBody: ""}
@@ -254,10 +265,27 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.requestTextarea.Focus()
 			}
 			return m, nil
+
 		case key.Matches(msg, m.keymap.execute):
 			var executeRequestCommands []tea.Cmd
 			m, executeRequestCommands = m.newRequest()
 			cmds = append(cmds, executeRequestCommands...)
+
+		case key.Matches(msg, m.keymap.save):
+			request, ok := m.currentRequest()
+			if !ok {
+				break
+			}
+			var err error
+			Gogetter, err = Gogetter.SaveRequest(request)
+			if err != nil {
+				m.responseTextarea.SetValue(fmt.Sprintf("request saving error: %w", err))
+			}
+			newItems := append([]list.Item{request}, m.savedRequests.Items()...)
+			cmds = append(cmds, m.savedRequests.SetItems(newItems))
+
+			return m, nil
+
 		case key.Matches(msg, m.keymap.next):
 			var focusCmds []tea.Cmd
 			m, focusCmds = m.SwitchFocus(true)
@@ -340,7 +368,7 @@ func (m *model) sizeInputs() {
 	if m.displayBottomList {
 		height -= bottomListHeight
 		m.history.SetWidth(m.width)
-		m.history.SetHeight(bottomListHeight)
+		m.savedRequests.SetWidth(m.width)
 	}
 	m.requestTextarea.SetWidth(m.width / 2)
 	m.requestTextarea.SetHeight(height)
@@ -351,11 +379,11 @@ func (m *model) sizeInputs() {
 func (m model) View() string {
 	help := m.help.ShortHelpView([]key.Binding{
 		m.keymap.execute,
+		m.keymap.save,
 		m.keymap.next,
 		m.keymap.prev,
 		m.keymap.toggleHistory,
 		m.keymap.toggleSavedRequests,
-		m.keymap.quit,
 	})
 
 	var views []string
