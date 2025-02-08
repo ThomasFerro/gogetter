@@ -5,6 +5,9 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"testing"
+
+	"github.com/ThomasFerro/gogetter/app"
 )
 
 type request struct {
@@ -72,4 +75,17 @@ func NewTestClient(options ...TestClientOption) TestHttpClient {
 	}
 
 	return testClient
+}
+
+func NewTestSetup(t *testing.T, options ...TestClientOption) app.Gogetter {
+	testClient := NewTestClient(options...)
+	gogetter, err := app.NewGogetter(
+		testClient,
+		app.WithHistory{
+			PreviousHistory: strings.NewReader("[]"),
+			HistoryWriter:   func(toWrite []byte) error { return nil }})
+	if err != nil {
+		t.Fatalf("new gogetter failed: %v", err)
+	}
+	return gogetter
 }

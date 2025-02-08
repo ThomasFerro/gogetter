@@ -10,46 +10,60 @@ type HttpClient interface {
 }
 
 type Request struct {
-	Method       string
-	Url          string
-	ResponseCode int
+	Method string
+	Url    string
 }
 
 func (r Request) FilterValue() string { return fmt.Sprintf("%v %v", r.Method, r.Url) }
-func (r Request) String() string      { return fmt.Sprintf("[%v]%v (%v)", r.Method, r.Url, r.ResponseCode) }
+func (r Request) String() string      { return fmt.Sprintf("[%v]%v", r.Method, r.Url) }
 
-type Gogetter struct {
-	client        HttpClient
-	history       History
-	historyWriter func([]byte) error
+type RequestAndResponse struct {
+	Request
+	ResponseCode int
 }
 
-func (g Gogetter) History() History { return g.history }
+func (r RequestAndResponse) FilterValue() string { return fmt.Sprintf("%v %v", r.Method, r.Url) }
+func (r RequestAndResponse) String() string {
+	return fmt.Sprintf("[%v]%v (%v)", r.Method, r.Url, r.ResponseCode)
+}
 
-func (g Gogetter) Execute(method, url string) (Gogetter, Request, *http.Response, error) {
+type Gogetter struct {
+	client             HttpClient
+	history            History
+	historyWriter      func([]byte) error
+	savedRequests      SavedRequests
+	requestsSavingFunc func([]byte) error
+}
+
+func (g Gogetter) History() History             { return g.history }
+func (g Gogetter) SavedRequests() SavedRequests { return g.savedRequests }
+
+func (g Gogetter) Execute(method, url string) (Gogetter, RequestAndResponse, *http.Response, error) {
 	req, err := http.NewRequest(method, url, nil)
 	if err != nil {
-		return g, Request{}, nil, fmt.Errorf("new request error: %w", err)
+		return g, RequestAndResponse{}, nil, fmt.Errorf("new request error: %w", err)
 	}
 	response, err := g.client.Do(req)
 	if err != nil {
-		return g, Request{}, nil, fmt.Errorf("request execution error: %w", err)
+		return g, RequestAndResponse{}, nil, fmt.Errorf("request execution error: %w", err)
 	}
 
 	responseCode := 0
 	if response != nil {
 		responseCode = response.StatusCode
 	}
-	request := Request{
-		Url:          url,
-		Method:       method,
+	requestAndResponse := RequestAndResponse{
+		Request: Request{
+			Url:    url,
+			Method: method,
+		},
 		ResponseCode: responseCode,
 	}
-	g, err = g.AppendToHistory(request)
+	g, err = g.AppendToHistory(requestAndResponse)
 	if err != nil {
-		return g, request, nil, fmt.Errorf("unable to append to history: %w", err)
+		return g, requestAndResponse, nil, fmt.Errorf("unable to append to history: %w", err)
 	}
-	return g, request, response, nil
+	return g, requestAndResponse, response, nil
 }
 
 type GogetterOption interface {

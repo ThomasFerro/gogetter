@@ -6,10 +6,10 @@ import (
 	"io"
 )
 
-type History []Request
+type History []RequestAndResponse
 
-func (g Gogetter) AppendToHistory(request Request) (Gogetter, error) {
-	g.history = append(g.history, request)
+func (g Gogetter) AppendToHistory(requestAndResponse RequestAndResponse) (Gogetter, error) {
+	g.history = append(g.history, requestAndResponse)
 	if g.historyWriter == nil {
 		return g, nil
 	}
