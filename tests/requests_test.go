@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ThomasFerro/gogetter/app"
+	"github.com/ThomasFerro/gogetter/helpers"
 	"github.com/ThomasFerro/gogetter/tests"
 )
 
@@ -27,7 +28,7 @@ func TestShouldSendSimpleRequest(t *testing.T) {
 	)
 	var result *http.Response
 	var err error
-	gogetter, result, err = gogetter.Execute("GET", "https://pkg.go.dev")
+	gogetter, _, result, err = gogetter.Execute("GET", "https://pkg.go.dev")
 	if err != nil {
 		t.Fatalf("request execution failed: %v", err)
 	}
@@ -50,7 +51,7 @@ func TestShouldPutRequestsInLocalHistory(t *testing.T) {
 		tests.SubstitutedRequestOption{Method: "GET", Url: "https://pkg.go.dev", Response: "ok"},
 	)
 	var err error
-	gogetter, _, err = gogetter.Execute("GET", "https://pkg.go.dev")
+	gogetter, _, _, err = gogetter.Execute("GET", "https://pkg.go.dev")
 	if err != nil {
 		t.Fatalf("request execution failed: %v", err)
 	}
@@ -96,11 +97,11 @@ func TestShouldLoadAndPersistHistory(t *testing.T) {
 		t.Fatalf("history not initially filled correctly: %v", history)
 	}
 
-	gogetter, _, err = gogetter.Execute("POST", "https://pkg.go.dev")
+	gogetter, _, _, err = gogetter.Execute("POST", "https://pkg.go.dev")
 	if err != nil {
 		t.Fatalf("request execution failed: %v", err)
 	}
-	gogetter, _, err = gogetter.Execute("DELETE", "https://pkg.go.dev/1")
+	gogetter, _, _, err = gogetter.Execute("DELETE", "https://pkg.go.dev/1")
 	if err != nil {
 		t.Fatalf("request execution failed: %v", err)
 	}
@@ -123,5 +124,21 @@ func TestShouldLoadAndPersistHistory(t *testing.T) {
 	}
 	if string(actualHistory) != expectedWrite {
 		t.Fatalf("history not wrote correctly: %v", string(actualHistory))
+	}
+}
+
+func TestEmptyHistory(t *testing.T) {
+	testClient := tests.NewTestClient()
+	previousHistory := helpers.EmptyReadCloser{}
+	historyWritingFunc := func(toWrite []byte) error { return nil }
+
+	gogetter, err := app.NewGogetter(testClient, previousHistory, historyWritingFunc)
+	if err != nil {
+		t.Fatalf("new gogetter failed: %v", err)
+	}
+	history := gogetter.History()
+	if len(history) != 0 {
+
+		t.Fatalf("expected an empty history: %s", history)
 	}
 }

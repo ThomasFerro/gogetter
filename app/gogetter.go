@@ -17,6 +17,9 @@ type Request struct {
 	ResponseCode int
 }
 
+func (r Request) FilterValue() string { return fmt.Sprintf("%v %v", r.Method, r.Url) }
+func (r Request) String() string      { return fmt.Sprintf("[%v]%v (%v)", r.Method, r.Url, r.ResponseCode) }
+
 type History []Request
 
 type Gogetter struct {
@@ -27,33 +30,34 @@ type Gogetter struct {
 
 func (g Gogetter) History() History { return g.history }
 
-func (g Gogetter) Execute(method, url string) (Gogetter, *http.Response, error) {
+func (g Gogetter) Execute(method, url string) (Gogetter, Request, *http.Response, error) {
 	req, err := http.NewRequest(method, url, nil)
 	if err != nil {
-		return g, nil, fmt.Errorf("new request error: %w", err)
+		return g, Request{}, nil, fmt.Errorf("new request error: %w", err)
 	}
 	response, err := g.client.Do(req)
 	if err != nil {
-		return g, nil, fmt.Errorf("request execution error: %w", err)
+		return g, Request{},nil, fmt.Errorf("request execution error: %w", err)
 	}
 
 	responseCode := 0
 	if response != nil {
 		responseCode = response.StatusCode
 	}
-	g, err = g.AppendToHistory(method, url, responseCode)
-	if err != nil {
-		return g, nil, fmt.Errorf("unable to append to history: %w", err)
-	}
-	return g, response, nil
-}
-
-func (g Gogetter) AppendToHistory(method, url string, responseCode int) (Gogetter, error) {
-	g.history = append(g.history, Request{
+	request := Request{
 		Url:          url,
 		Method:       method,
 		ResponseCode: responseCode,
-	})
+	}
+	g, err = g.AppendToHistory(request)
+	if err != nil {
+		return g, request, nil, fmt.Errorf("unable to append to history: %w", err)
+	}
+	return g, request, response, nil
+}
+
+func (g Gogetter) AppendToHistory(request Request) (Gogetter, error) {
+	g.history = append(g.history, request)
 	toWrite, err := json.Marshal(g.history)
 	if err != nil {
 		return g, fmt.Errorf("history marshal error: %w", err)
@@ -65,7 +69,6 @@ func (g Gogetter) AppendToHistory(method, url string, responseCode int) (Gogette
 	return g, nil
 }
 
-// TODO: Stream the history ?
 func extractHistory(reader io.Reader) (History, error) {
 	readerContent, err := io.ReadAll(reader)
 	if err != nil {
