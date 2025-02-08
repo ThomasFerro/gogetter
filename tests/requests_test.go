@@ -14,7 +14,11 @@ import (
 
 func newTestSetup(t *testing.T, options ...tests.TestClientOption) app.Gogetter {
 	testClient := tests.NewTestClient(options...)
-	gogetter, err := app.NewGogetter(testClient, strings.NewReader("[]"), func(toWrite []byte) error { return nil })
+	gogetter, err := app.NewGogetter(
+		testClient,
+		app.WithHistory{
+			PreviousHistory: strings.NewReader("[]"),
+			HistoryWriter:   func(toWrite []byte) error { return nil }})
 	if err != nil {
 		t.Fatalf("new gogetter failed: %v", err)
 	}
@@ -42,6 +46,26 @@ func TestShouldSendSimpleRequest(t *testing.T) {
 	}
 	if string(body) != "ok" {
 		t.Fatalf(`expected body to be "ok" but got %v`, string(body))
+	}
+}
+
+func TestWorksWithoutHistory(t *testing.T) {
+	testClient := tests.NewTestClient(
+		tests.SubstitutedRequestOption{Method: "GET", Url: "https://pkg.go.dev", Response: "ok"},
+	)
+	gogetter, err := app.NewGogetter(testClient)
+	if err != nil {
+		t.Fatalf("new gogetter failed: %v", err)
+	}
+
+	gogetter, _, _, err = gogetter.Execute("GET", "https://pkg.go.dev")
+	if err != nil {
+		t.Fatalf("request execution failed: %v", err)
+	}
+
+	history := gogetter.History()
+	if len(history) != 1 {
+		t.Fatalf("in memory history not filled correctly: %v", history)
 	}
 }
 
@@ -85,7 +109,7 @@ func TestShouldLoadAndPersistHistory(t *testing.T) {
 		return err
 	}
 
-	gogetter, err := app.NewGogetter(testClient, previousHistory, historyWritingFunc)
+	gogetter, err := app.NewGogetter(testClient, app.WithHistory{PreviousHistory: previousHistory, HistoryWriter: historyWritingFunc})
 	if err != nil {
 		t.Fatalf("new gogetter failed: %v", err)
 	}
@@ -132,7 +156,7 @@ func TestEmptyHistory(t *testing.T) {
 	previousHistory := helpers.EmptyReadCloser{}
 	historyWritingFunc := func(toWrite []byte) error { return nil }
 
-	gogetter, err := app.NewGogetter(testClient, previousHistory, historyWritingFunc)
+	gogetter, err := app.NewGogetter(testClient, app.WithHistory{PreviousHistory: previousHistory, HistoryWriter: historyWritingFunc})
 	if err != nil {
 		t.Fatalf("new gogetter failed: %v", err)
 	}

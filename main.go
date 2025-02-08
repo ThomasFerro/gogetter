@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -23,11 +24,10 @@ func historyFileReader() (io.ReadCloser, error) {
 	return historyFileReader, nil
 }
 
-func main() {
+func historyOption() (app.WithHistory, error) {
 	historyFileReader, err := historyFileReader()
 	if err != nil {
-		slog.Error("error while opening history file", slog.Any("error", err))
-		os.Exit(1)
+		return app.WithHistory{}, errors.New("history file reader error")
 	}
 	defer historyFileReader.Close()
 
@@ -40,7 +40,18 @@ func main() {
 		_, err = historyFileWriter.Write(toWrite)
 		return err
 	}
-	gogetter, err := app.NewGogetter(http.DefaultClient, historyFileReader, historyWritingFunc)
+	return app.WithHistory{
+		PreviousHistory: historyFileReader, HistoryWriter: historyWritingFunc,
+	}, nil
+}
+
+func main() {
+	withHistory, err := historyOption()
+	if err != nil {
+		slog.Error("error while creating history", slog.Any("error", err))
+		os.Exit(1)
+	}
+	gogetter, err := app.NewGogetter(http.DefaultClient, withHistory)
 	if err != nil {
 		slog.Error("error while creating new gogetter", slog.Any("error", err))
 		os.Exit(1)
