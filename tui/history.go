@@ -11,8 +11,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-const historyHeight = 10
-
 var (
 	historyItemStyle         = lipgloss.NewStyle().PaddingLeft(4)
 	historySelectedItemStyle = lipgloss.NewStyle().PaddingLeft(2).Foreground(lipgloss.Color("170"))
@@ -24,7 +22,7 @@ func (d historyItemDelegate) Height() int                             { return 1
 func (d historyItemDelegate) Spacing() int                            { return 0 }
 func (d historyItemDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
 func (d historyItemDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
-	request, ok := listItem.(app.Request)
+	request, ok := listItem.(app.RequestAndResponse)
 	if !ok {
 		return
 	}
@@ -50,10 +48,11 @@ func mapHistory(history app.History) []list.Item {
 }
 
 func newHistoryList(history app.History) list.Model {
-	l := list.New(mapHistory(history), historyItemDelegate{}, 0, historyHeight)
+	l := list.New(mapHistory(history), historyItemDelegate{}, 0, bottomListHeight)
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(false)
 	l.SetShowHelp(false)
-	l.SetShowTitle(false)
+	l.Title = "History"
+	l.SetShowTitle(true)
 	return l
 }
