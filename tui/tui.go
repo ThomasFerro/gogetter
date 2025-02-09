@@ -283,7 +283,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			var err error
 			Gogetter, err = Gogetter.SaveRequest(request)
 			if err != nil {
-				m.responseTextarea.SetValue(fmt.Sprintf("request saving error: %w", err))
+				m.responseTextarea.SetValue(fmt.Sprintf("request saving error: %s", err))
 			}
 			newItems := append([]list.Item{request}, m.savedRequests.Items()...)
 			cmds = append(cmds, m.savedRequests.SetItems(newItems))
@@ -295,7 +295,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			var err error
 			Gogetter, err = Gogetter.RemoveSavedRequest(itemToRemove)
 			if err != nil {
-				m.responseTextarea.SetValue(fmt.Sprintf("remove saved request error: %w", err))
+				m.responseTextarea.SetValue(fmt.Sprintf("remove saved request error: %s", err))
 			}
 			previousItems := m.savedRequests.Items()
 			newItems := append(previousItems[:itemToRemove], previousItems[itemToRemove+1:]...)
