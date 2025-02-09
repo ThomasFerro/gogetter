@@ -23,7 +23,7 @@ const (
 var Gogetter app.Gogetter
 
 type keymap = struct {
-	next, prev, execute, save, toggleHistory, toggleSavedRequests, quit, enter key.Binding
+	next, prev, execute, save, remove, toggleHistory, toggleSavedRequests, quit, enter key.Binding
 }
 
 type focusedArea int
@@ -74,6 +74,10 @@ func NewModel(gogetter app.Gogetter) model {
 			save: key.NewBinding(
 				key.WithKeys("alt+s"),
 				key.WithHelp("alt+s", "save request"),
+			),
+			remove: key.NewBinding(
+				key.WithKeys("alt+d"),
+				key.WithHelp("alt+d", "remove saved request"),
 			),
 			toggleHistory: key.NewBinding(
 				key.WithKeys("alt+h"),
@@ -286,6 +290,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			return m, nil
 
+		case key.Matches(msg, m.keymap.remove):
+			itemToRemove := m.savedRequests.Index()
+			var err error
+			Gogetter, err = Gogetter.RemoveSavedRequest(itemToRemove)
+			if err != nil {
+				m.responseTextarea.SetValue(fmt.Sprintf("remove saved request error: %w", err))
+			}
+			previousItems := m.savedRequests.Items()
+			newItems := append(previousItems[:itemToRemove], previousItems[itemToRemove+1:]...)
+			cmds = append(cmds, m.savedRequests.SetItems(newItems))
+
+			return m, nil
+
 		case key.Matches(msg, m.keymap.next):
 			var focusCmds []tea.Cmd
 			m, focusCmds = m.SwitchFocus(true)
@@ -377,14 +394,25 @@ func (m *model) sizeInputs() {
 }
 
 func (m model) View() string {
-	help := m.help.ShortHelpView([]key.Binding{
-		m.keymap.execute,
-		m.keymap.save,
+	displayedBindingHelps := []key.Binding{
 		m.keymap.next,
 		m.keymap.prev,
 		m.keymap.toggleHistory,
 		m.keymap.toggleSavedRequests,
-	})
+	}
+	if m.focusedArea == RequestArea || m.focusedArea == ResponseArea {
+		displayedBindingHelps = append([]key.Binding{
+			m.keymap.execute,
+			m.keymap.save,
+		}, displayedBindingHelps...)
+	}
+	if m.focusedArea == BottomListArea && m.bottomList == SavedRequestsBottomList {
+		displayedBindingHelps = append([]key.Binding{
+			m.keymap.remove,
+		}, displayedBindingHelps...)
+
+	}
+	help := m.help.ShortHelpView(displayedBindingHelps)
 
 	var views []string
 	views = append(views, m.requestTextarea.View())

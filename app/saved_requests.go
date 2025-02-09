@@ -2,6 +2,7 @@ package app
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 )
@@ -10,6 +11,25 @@ type SavedRequests []Request
 
 func (g Gogetter) SaveRequest(request Request) (Gogetter, error) {
 	g.savedRequests = append(g.savedRequests, request)
+	if g.requestsSavingFunc == nil {
+		return g, nil
+	}
+	toWrite, err := json.Marshal(g.savedRequests)
+	if err != nil {
+		return g, fmt.Errorf("saved requests marshal error: %w", err)
+	}
+	err = g.requestsSavingFunc(toWrite)
+	if err != nil {
+		return g, fmt.Errorf("saved requests writing error: %w", err)
+	}
+	return g, nil
+}
+
+func (g Gogetter) RemoveSavedRequest(index int) (Gogetter, error) {
+	if index >= len(g.savedRequests) {
+		return g, errors.New("cannot remove saved request, invalid index")
+	}
+	g.savedRequests = append(g.savedRequests[:index], g.savedRequests[index+1:]...)
 	if g.requestsSavingFunc == nil {
 		return g, nil
 	}

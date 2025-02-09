@@ -106,3 +106,50 @@ func TestShouldWorkWithoutSavedRequestYet(t *testing.T) {
 		t.Fatalf("new gogetter failed: %v", err)
 	}
 }
+
+func TestRemoveSavedRequest(t *testing.T) {
+	testClient := tests.NewTestClient()
+	initialSavedRequests := strings.NewReader(`[{ "method": "GET", "url": "https://pkg.go.dev" },{ "method": "POST", "url": "https:/my-api.com/posts" }]`)
+	savedRequestsFile, err := os.CreateTemp("", "test_*")
+
+	if err != nil {
+		t.Fatalf("saved requests file creation failed: %v", err)
+	}
+	savedRequestsFileName := savedRequestsFile.Name()
+	savedRequestsFile.Close()
+
+	requestsSavingFunc := func(toWrite []byte) error {
+		savedRequestsFileWriter, err := os.Create(savedRequestsFileName)
+		if err != nil {
+			return err
+		}
+		defer savedRequestsFileWriter.Close()
+		_, err = savedRequestsFileWriter.Write(toWrite)
+		return err
+	}
+
+	gogetter, err := app.NewGogetter(testClient, app.WithSavedRequests{InitialSavedRequests: initialSavedRequests, RequestsSavingFunc: requestsSavingFunc})
+	if err != nil {
+		t.Fatalf("new gogetter failed: %v", err)
+	}
+
+	gogetter, err = gogetter.RemoveSavedRequest(0)
+	if err != nil {
+		t.Fatalf("remove saved request failed: %v", err)
+	}
+
+	savedRequests := gogetter.SavedRequests()
+	if len(savedRequests) != 1 ||
+		savedRequests[0].Method != "POST" ||
+		savedRequests[0].Url != "https:/my-api.com/posts" {
+		t.Fatalf("saved requests not removed correctly: %v", savedRequests)
+	}
+	expectedWrite := `[{"Method":"POST","Url":"https:/my-api.com/posts"}]`
+	actualSavedRequests, err := os.ReadFile(savedRequestsFileName)
+	if err != nil {
+		t.Fatalf("saved requests file reading failed: %v", err)
+	}
+	if string(actualSavedRequests) != expectedWrite {
+		t.Fatalf("saved requests not wrote correctly: %v", string(actualSavedRequests))
+	}
+}
