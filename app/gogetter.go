@@ -38,8 +38,8 @@ type Gogetter struct {
 func (g Gogetter) History() History             { return g.history }
 func (g Gogetter) SavedRequests() SavedRequests { return g.savedRequests }
 
-func (g Gogetter) Execute(method, url string) (Gogetter, RequestAndResponse, *http.Response, error) {
-	req, err := http.NewRequest(method, url, nil)
+func (g Gogetter) Execute(request Request) (Gogetter, RequestAndResponse, *http.Response, error) {
+	req, err := http.NewRequest(request.Method, request.Url, nil)
 	if err != nil {
 		return g, RequestAndResponse{}, nil, fmt.Errorf("new request error: %w", err)
 	}
@@ -53,10 +53,7 @@ func (g Gogetter) Execute(method, url string) (Gogetter, RequestAndResponse, *ht
 		responseCode = response.StatusCode
 	}
 	requestAndResponse := RequestAndResponse{
-		Request: Request{
-			Url:    url,
-			Method: method,
-		},
+		Request:      request,
 		ResponseCode: responseCode,
 	}
 	g, err = g.AppendToHistory(requestAndResponse)

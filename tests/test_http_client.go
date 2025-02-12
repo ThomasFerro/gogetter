@@ -51,8 +51,7 @@ type TestClientOption interface {
 }
 
 type SubstitutedRequestOption struct {
-	Method       string
-	Url          string
+	app.Request
 	Response     string
 	ResponseCode int
 }

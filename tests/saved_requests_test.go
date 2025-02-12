@@ -82,14 +82,14 @@ func TestShouldSaveRequest(t *testing.T) {
 
 func TestShouldWorkWithoutSavedRequestOption(t *testing.T) {
 	testClient := tests.NewTestClient(
-		tests.SubstitutedRequestOption{Method: "GET", Url: "https://pkg.go.dev", Response: "ok"},
+		tests.SubstitutedRequestOption{Request: app.Request{Method: "GET", Url: "https://pkg.go.dev"}, Response: "ok"},
 	)
 	gogetter, err := app.NewGogetter(testClient)
 	if err != nil {
 		t.Fatalf("new gogetter failed: %v", err)
 	}
 
-	_, _, _, err = gogetter.Execute("GET", "https://pkg.go.dev")
+	_, _, _, err = gogetter.Execute(app.Request{Method: "GET", Url: "https://pkg.go.dev"})
 	if err != nil {
 		t.Fatalf("request execution failed: %v", err)
 	}

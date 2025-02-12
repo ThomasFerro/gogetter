@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 
 	"github.com/ThomasFerro/gogetter/app"
+	"github.com/ThomasFerro/gogetter/parser"
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
@@ -129,14 +129,8 @@ func (m model) newRequest() (model, []tea.Cmd) {
 }
 
 func (m model) currentRequest() (app.Request, bool) {
-	// TODO: Extract and extend the parsing
-	input := strings.Split(m.requestTextarea.Value(), " ")
-	if len(input) < 2 {
-		return app.Request{}, false
-	}
-	method := input[0]
-	url := input[1]
-	return app.Request{Method: method, Url: url}, true
+	request, err := parser.ParseRequest(m.requestTextarea.Value())
+	return request, err == nil
 }
 
 func (m model) executeRequest() (model, []tea.Cmd) {
@@ -152,7 +146,7 @@ func (m model) executeRequest() (model, []tea.Cmd) {
 		var resp *http.Response
 		var err error
 		var requestAndResponse app.RequestAndResponse
-		Gogetter, requestAndResponse, resp, err = Gogetter.Execute(request.Method, request.Url)
+		Gogetter, requestAndResponse, resp, err = Gogetter.Execute(request)
 		var response []byte
 
 		if resp != nil {
