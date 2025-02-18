@@ -13,7 +13,7 @@ import (
 func TestShouldPutRequestsInLocalHistory(t *testing.T) {
 	gogetter := tests.NewTestSetup(
 		t,
-		tests.SubstitutedRequestOption{Request: app.Request{Method: "GET", Url: "https://pkg.go.dev"}, Response: "ok"},
+		tests.SubstitutedRequest{Request: app.Request{Method: "GET", Url: "https://pkg.go.dev"}, Response: "ok"},
 	)
 	var err error
 	gogetter, _, _, err = gogetter.Execute(app.Request{Method: "GET", Url: "https://pkg.go.dev"})
@@ -29,10 +29,10 @@ func TestShouldPutRequestsInLocalHistory(t *testing.T) {
 
 func TestShouldLoadAndPersistHistory(t *testing.T) {
 	testClient := tests.NewTestClient(
-		tests.SubstitutedRequestOption{Request: app.Request{Method: "POST", Url: "https://pkg.go.dev"}, Response: "created", ResponseCode: 201},
-		tests.SubstitutedRequestOption{Request: app.Request{Method: "DELETE", Url: "https://pkg.go.dev/1"}, Response: "not authorized", ResponseCode: 401},
+		tests.SubstitutedRequest{Request: app.Request{Method: "POST", Url: "https://pkg.go.dev"}, Response: "created", ResponseCode: 201},
+		tests.SubstitutedRequest{Request: app.Request{Method: "DELETE", Url: "https://pkg.go.dev/1"}, Response: "not authorized", ResponseCode: 401},
 	)
-	previousHistory := strings.NewReader(`[{ "method": "GET", "url": "https:/google.fr", "responseCode": 200 }]`)
+	previousHistory := strings.NewReader(`[{ "request": "GET https:/google.fr", "responseCode": 200 }]`)
 	historyFile, err := os.CreateTemp("", "test_*")
 	if err != nil {
 		t.Fatalf("history file creation failed: %v", err)
@@ -61,12 +61,19 @@ func TestShouldLoadAndPersistHistory(t *testing.T) {
 		history[0].ResponseCode != 200 {
 		t.Fatalf("history not initially filled correctly: %v", history)
 	}
-
-	gogetter, _, _, err = gogetter.Execute(app.Request{Method: "POST", Url: "https://pkg.go.dev"})
+	request, err := app.ParseRequest("POST https://pkg.go.dev")
+	if err != nil {
+		t.Fatalf("request parsing failed: %v", err)
+	}
+	gogetter, _, _, err = gogetter.Execute(request)
 	if err != nil {
 		t.Fatalf("request execution failed: %v", err)
 	}
-	gogetter, _, _, err = gogetter.Execute(app.Request{Method: "DELETE", Url: "https://pkg.go.dev/1"})
+	request, err = app.ParseRequest("DELETE https://pkg.go.dev/1")
+	if err != nil {
+		t.Fatalf("request parsing failed: %v", err)
+	}
+	gogetter, _, _, err = gogetter.Execute(request)
 	if err != nil {
 		t.Fatalf("request execution failed: %v", err)
 	}
@@ -82,7 +89,7 @@ func TestShouldLoadAndPersistHistory(t *testing.T) {
 		t.Fatalf("history not filled correctly: %v", history)
 	}
 
-	expectedWrite := `[{"Method":"GET","Url":"https:/google.fr","ResponseCode":200},{"Method":"POST","Url":"https://pkg.go.dev","ResponseCode":201},{"Method":"DELETE","Url":"https://pkg.go.dev/1","ResponseCode":401}]`
+	expectedWrite := `[{"Request":"GET https:/google.fr","ResponseCode":200},{"Request":"POST https://pkg.go.dev","ResponseCode":201},{"Request":"DELETE https://pkg.go.dev/1","ResponseCode":401}]`
 	actualHistory, err := os.ReadFile(historyFileName)
 	if err != nil {
 		t.Fatalf("history file reading failed: %v", err)
@@ -110,7 +117,7 @@ func TestEmptyHistory(t *testing.T) {
 
 func TestNoHistoryOption(t *testing.T) {
 	testClient := tests.NewTestClient(
-		tests.SubstitutedRequestOption{Request: app.Request{Method: "GET", Url: "https://pkg.go.dev"}, Response: "ok"},
+		tests.SubstitutedRequest{Request: app.Request{Method: "GET", Url: "https://pkg.go.dev"}, Response: "ok"},
 	)
 	gogetter, err := app.NewGogetter(testClient)
 	if err != nil {

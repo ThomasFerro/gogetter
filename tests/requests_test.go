@@ -6,14 +6,13 @@ import (
 	"testing"
 
 	"github.com/ThomasFerro/gogetter/app"
-	"github.com/ThomasFerro/gogetter/lexer"
 	"github.com/ThomasFerro/gogetter/tests"
 )
 
 func TestShouldSendSimpleRequest(t *testing.T) {
 	gogetter := tests.NewTestSetup(
 		t,
-		tests.SubstitutedRequestOption{Request: app.Request{Method: "GET", Url: "https://pkg.go.dev"}, Response: "ok"},
+		tests.SubstitutedRequest{Request: app.Request{Method: "GET", Url: "https://pkg.go.dev"}, Response: "ok"},
 	)
 	var result *http.Response
 	var err error
@@ -34,27 +33,35 @@ func TestShouldSendSimpleRequest(t *testing.T) {
 	}
 }
 
-// TODO: Send request with headers
+// TODO: Save request with all parameters
+// TODO: History request with all parameters
+
 // TODO: Send request with search params
 // TODO: Send request with a json body
 // TODO: Send request with a multipart body
+
 func TestShouldSendARequestWithHeaders(t *testing.T) {
 	gogetter := tests.NewTestSetup(
 		t,
-		tests.SubstitutedRequestOption{
+		tests.SubstitutedRequest{
 			Request: app.Request{
 				Method: "GET", Url: "https://pkg.go.dev", Headers: app.Headers{
-					"x-api-key": "myApiKey",
+					"X-Api-Key": "myApiKey",
+					"Accept":    "text/html",
 				}},
 			Response: "ok"},
 	)
 	var result *http.Response
 	var err error
-	// TODO: Passer par le parsing
-	request := `GET https://pkg.go.dev
-x-api-key:myApiKey
+	rawRequest := `GET https://pkg.go.dev
+Accept=:text/html x-api-key=:myApiKey
 `
-	gogetter, _, result, err = gogetter.Execute(lexer.ParseRequest(request))
+
+	request, err := app.ParseRequest(rawRequest)
+	if err != nil {
+		t.Fatalf("request parsing failed: %v", err)
+	}
+	gogetter, _, result, err = gogetter.Execute(request)
 	if err != nil {
 		t.Fatalf("request execution failed: %v", err)
 	}

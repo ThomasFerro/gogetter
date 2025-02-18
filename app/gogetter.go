@@ -9,9 +9,13 @@ type HttpClient interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
+type Headers map[string]string
+
 type Request struct {
-	Method string
-	Url    string
+	Raw     string
+	Method  string
+	Url     string
+	Headers Headers
 }
 
 func (r Request) FilterValue() string { return fmt.Sprintf("%v %v", r.Method, r.Url) }
@@ -40,6 +44,9 @@ func (g Gogetter) SavedRequests() SavedRequests { return g.savedRequests }
 
 func (g Gogetter) Execute(request Request) (Gogetter, RequestAndResponse, *http.Response, error) {
 	req, err := http.NewRequest(request.Method, request.Url, nil)
+	for header, value := range request.Headers {
+		req.Header.Add(header, value)
+	}
 	if err != nil {
 		return g, RequestAndResponse{}, nil, fmt.Errorf("new request error: %w", err)
 	}

@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	"github.com/ThomasFerro/gogetter/app"
-	"github.com/ThomasFerro/gogetter/parser"
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
@@ -129,7 +128,7 @@ func (m model) newRequest() (model, []tea.Cmd) {
 }
 
 func (m model) currentRequest() (app.Request, bool) {
-	request, err := parser.ParseRequest(m.requestTextarea.Value())
+	request, err := app.ParseRequest(m.requestTextarea.Value())
 	return request, err == nil
 }
 
@@ -314,7 +313,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if !ok {
 					return m, nil
 				}
-				m.requestTextarea.SetValue(fmt.Sprintf("%s %s", selectedHistoryEntry.Method, selectedHistoryEntry.Url))
+				m.requestTextarea.SetValue(selectedHistoryEntry.Raw)
 			}
 
 			if m.bottomList == SavedRequestsBottomList {
@@ -322,7 +321,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if !ok {
 					return m, nil
 				}
-				m.requestTextarea.SetValue(fmt.Sprintf("%s %s", selectedSavedRequest.Method, selectedSavedRequest.Url))
+				m.requestTextarea.SetValue(selectedSavedRequest.Raw)
 			}
 			m.focusedArea = RequestArea
 			return m, m.requestTextarea.Focus()
