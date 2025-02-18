@@ -38,7 +38,7 @@ func (l lexer) peak(startingPosition, numberOfCharToEat int) string {
 func (l lexer) readUntilNextSeparator() string {
 	subInput := l.input[l.readPosition:]
 	closestSeparatorIndex := len(subInput)
-	separators := append(ignoredChars, string(HEADER))
+	separators := append(ignoredChars, string(HEADER), string(SEARCH_PARAM))
 	for _, separator := range separators {
 		index := strings.Index(subInput, separator)
 		if index != -1 && index < closestSeparatorIndex {
@@ -80,11 +80,19 @@ func (l lexer) next() (lexer, bool) {
 
 	switch nextChar {
 	case "=":
-		potentialHeader := l.peak(l.readPosition, 2)
-		if potentialHeader == string(HEADER) {
+		potentialParameter := l.peak(l.readPosition, 2)
+		if potentialParameter == string(HEADER) {
 			l.tokens = append(l.tokens, token{
 				Type:    HEADER,
-				Literal: potentialHeader,
+				Literal: potentialParameter,
+			})
+			readPositionIncrement = 2
+			break
+		}
+		if potentialParameter == string(SEARCH_PARAM) {
+			l.tokens = append(l.tokens, token{
+				Type:    SEARCH_PARAM,
+				Literal: potentialParameter,
 			})
 			readPositionIncrement = 2
 			break

@@ -30,13 +30,24 @@ func ParseRequest(input string) (Request, error) {
 	request.Method = method
 	request.Url = lexer.tokens[1].Literal
 	request.Headers = Headers{}
+	request.SearchParams = SearchParams{}
 
 	requestAdditionalParameters := lexer.tokens[2:]
 	for index, token := range requestAdditionalParameters {
-		if token.Type == HEADER && index > 0 && len(requestAdditionalParameters) > index+1 {
+		if index == 0 || index == len(requestAdditionalParameters)-1 {
+			continue
+		}
+		if token.Type == HEADER {
 			header := requestAdditionalParameters[index-1].Literal
 			value := requestAdditionalParameters[index+1].Literal
 			request.Headers[header] = value
+			continue
+		}
+		if token.Type == SEARCH_PARAM {
+			key := requestAdditionalParameters[index-1].Literal
+			value := requestAdditionalParameters[index+1].Literal
+			request.SearchParams[key] = value
+			continue
 		}
 	}
 

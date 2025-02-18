@@ -1,7 +1,7 @@
 package tests
 
 import (
-	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -41,9 +41,17 @@ func (t TestHttpClient) Do(req *http.Request) (*http.Response, error) {
 	return substitutedRequests.ToHttpResponse(), nil
 }
 
+func urlWithoutSearchParams(url string) string {
+	index := strings.Index(url, "?")
+	if index == -1 {
+		return url
+	}
+	return url[:index]
+}
+
 func (t TestHttpClient) foundSubstitutedRequest(req *http.Request) (SubstitutedRequest, error) {
 	for _, substitutedRequest := range t.SubstitutedRequests {
-		if substitutedRequest.Method != req.Method || substitutedRequest.Url != req.URL.String() {
+		if substitutedRequest.Method != req.Method || substitutedRequest.Url != urlWithoutSearchParams(req.URL.String()) {
 			continue
 		}
 
@@ -59,9 +67,21 @@ func (t TestHttpClient) foundSubstitutedRequest(req *http.Request) (SubstitutedR
 			continue
 		}
 
+		allSearchParamsAreMatching := true
+		for key, value := range substitutedRequest.SearchParams {
+			requestSearchParam := req.URL.Query()[key]
+
+			if len(requestSearchParam) != 1 || requestSearchParam[0] != value {
+				allSearchParamsAreMatching = false
+			}
+		}
+		if !allSearchParamsAreMatching {
+			continue
+		}
+
 		return substitutedRequest, nil
 	}
-	return SubstitutedRequest{}, errors.New("request was not substituted")
+	return SubstitutedRequest{}, fmt.Errorf("request was not substituted, expected %v to be in %v", req.URL, t.SubstitutedRequests)
 }
 
 type TestClientOption interface {

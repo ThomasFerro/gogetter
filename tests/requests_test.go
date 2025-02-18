@@ -77,3 +77,43 @@ Accept=:text/html x-api-key=:myApiKey
 		t.Fatalf(`expected body to be "ok" but got %v`, string(body))
 	}
 }
+
+// TODO: Gestion des espaces ? ou via double quotes
+func TestShouldSendARequestWithQueryParams(t *testing.T) {
+	gogetter := tests.NewTestSetup(
+		t,
+		tests.SubstitutedRequest{
+			Request: app.Request{
+				Method: "GET", Url: "https://pkg.go.dev", SearchParams: app.SearchParams{
+					"search":  "std pkg",
+					"orderBy": "name",
+					"exp":     "true",
+				}},
+			Response: "ok"},
+	)
+	var result *http.Response
+	var err error
+	rawRequest := `GET https://pkg.go.dev?search=std%20pkg&orderBy=date&exp=true
+orderBy=?name
+`
+
+	request, err := app.ParseRequest(rawRequest)
+	if err != nil {
+		t.Fatalf("request parsing failed: %v", err)
+	}
+	gogetter, _, result, err = gogetter.Execute(request)
+	if err != nil {
+		t.Fatalf("request execution failed: %v", err)
+	}
+	if result == nil {
+		t.Fatalf("no result")
+	}
+	defer result.Body.Close()
+	body, err := io.ReadAll(result.Body)
+	if err != nil {
+		t.Fatalf("result body read failed: %v", err)
+	}
+	if string(body) != "ok" {
+		t.Fatalf(`expected body to be "ok" but got %v`, string(body))
+	}
+}

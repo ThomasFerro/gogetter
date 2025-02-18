@@ -10,12 +10,14 @@ type HttpClient interface {
 }
 
 type Headers map[string]string
+type SearchParams map[string]string
 
 type Request struct {
-	Raw     string
-	Method  string
-	Url     string
-	Headers Headers
+	Raw          string
+	Method       string
+	Url          string
+	Headers      Headers
+	SearchParams SearchParams
 }
 
 func (r Request) FilterValue() string { return fmt.Sprintf("%v %v", r.Method, r.Url) }
@@ -46,6 +48,13 @@ func (g Gogetter) Execute(request Request) (Gogetter, RequestAndResponse, *http.
 	req, err := http.NewRequest(request.Method, request.Url, nil)
 	for header, value := range request.Headers {
 		req.Header.Add(header, value)
+	}
+	q := req.URL.Query()
+	for key, value := range request.SearchParams {
+		q.Set(key, value)
+	}
+	if len(request.SearchParams) > 0 {
+		req.URL.RawQuery = q.Encode()
 	}
 	if err != nil {
 		return g, RequestAndResponse{}, nil, fmt.Errorf("new request error: %w", err)
