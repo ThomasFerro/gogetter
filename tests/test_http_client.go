@@ -41,17 +41,9 @@ func (t TestHttpClient) Do(req *http.Request) (*http.Response, error) {
 	return substitutedRequests.ToHttpResponse(), nil
 }
 
-func urlWithoutSearchParams(url string) string {
-	index := strings.Index(url, "?")
-	if index == -1 {
-		return url
-	}
-	return url[:index]
-}
-
 func (t TestHttpClient) foundSubstitutedRequest(req *http.Request) (SubstitutedRequest, error) {
 	for _, substitutedRequest := range t.SubstitutedRequests {
-		if substitutedRequest.Method != req.Method || substitutedRequest.Url != urlWithoutSearchParams(req.URL.String()) {
+		if substitutedRequest.Method != req.Method || substitutedRequest.Url != req.URL.String() {
 			continue
 		}
 
@@ -64,18 +56,6 @@ func (t TestHttpClient) foundSubstitutedRequest(req *http.Request) (SubstitutedR
 			}
 		}
 		if !allHeadersAreMatching {
-			continue
-		}
-
-		allSearchParamsAreMatching := true
-		for key, value := range substitutedRequest.SearchParams {
-			requestSearchParam := req.URL.Query()[key]
-
-			if len(requestSearchParam) != 1 || requestSearchParam[0] != value {
-				allSearchParamsAreMatching = false
-			}
-		}
-		if !allSearchParamsAreMatching {
 			continue
 		}
 

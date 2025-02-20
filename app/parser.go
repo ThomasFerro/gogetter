@@ -2,6 +2,7 @@ package app
 
 import (
 	"errors"
+	"fmt"
 	"slices"
 )
 
@@ -12,6 +13,35 @@ func extractMethod(lexer lexer) (string, error) {
 		return "", errors.New("invalid request, provide a valid method")
 	}
 	return lexer.tokens[0].Literal, nil
+}
+
+func extractNextValue(requestAdditionalParameters []token, index int) (string, int) {
+	if index >= len(requestAdditionalParameters)-1 {
+		return "", index + 1
+	}
+	valueIndex := index + 1
+	literal := requestAdditionalParameters[valueIndex].Literal
+	if literal != string(QUOTES) {
+		return literal, valueIndex
+	}
+
+	valueInsideQuotes := ""
+	for {
+		valueIndex++
+
+		literal = requestAdditionalParameters[valueIndex].Literal
+		if literal == string(QUOTES) {
+			break
+		}
+
+		valueInsideQuotes = fmt.Sprintf("%v%v ", valueInsideQuotes, literal)
+
+		if valueIndex >= len(requestAdditionalParameters)-1 {
+			break
+		}
+	}
+
+	return valueInsideQuotes[:len(valueInsideQuotes)-1], valueIndex
 }
 
 func ParseRequest(input string) (Request, error) {
@@ -33,22 +63,28 @@ func ParseRequest(input string) (Request, error) {
 	request.SearchParams = SearchParams{}
 
 	requestAdditionalParameters := lexer.tokens[2:]
-	for index, token := range requestAdditionalParameters {
-		if index == 0 || index == len(requestAdditionalParameters)-1 {
+	index := 0
+	for index < len(requestAdditionalParameters) {
+		token := requestAdditionalParameters[index]
+		if index == 0 || index >= len(requestAdditionalParameters) {
+			index++
 			continue
 		}
 		if token.Type == HEADER {
 			header := requestAdditionalParameters[index-1].Literal
-			value := requestAdditionalParameters[index+1].Literal
+			value := ""
+			value, index = extractNextValue(requestAdditionalParameters, index)
 			request.Headers[header] = value
 			continue
 		}
 		if token.Type == SEARCH_PARAM {
 			key := requestAdditionalParameters[index-1].Literal
-			value := requestAdditionalParameters[index+1].Literal
+			value := ""
+			value, index = extractNextValue(requestAdditionalParameters, index)
 			request.SearchParams[key] = value
 			continue
 		}
+		index++
 	}
 
 	return request, nil

@@ -54,8 +54,7 @@ func TestShouldSendARequestWithHeaders(t *testing.T) {
 	var result *http.Response
 	var err error
 	rawRequest := `GET https://pkg.go.dev
-Accept=:text/html x-api-key=:myApiKey
-`
+Accept=:text/html x-api-key=:myApiKey`
 
 	request, err := app.ParseRequest(rawRequest)
 	if err != nil {
@@ -78,24 +77,18 @@ Accept=:text/html x-api-key=:myApiKey
 	}
 }
 
-// TODO: Gestion des espaces ? ou via double quotes
 func TestShouldSendARequestWithQueryParams(t *testing.T) {
 	gogetter := tests.NewTestSetup(
 		t,
 		tests.SubstitutedRequest{
 			Request: app.Request{
-				Method: "GET", Url: "https://pkg.go.dev", SearchParams: app.SearchParams{
-					"search":  "std pkg",
-					"orderBy": "name",
-					"exp":     "true",
-				}},
+				Method: "GET", Url: "https://pkg.go.dev?a=b&orderBy=name&search=http+template&tag=standard+library"},
 			Response: "ok"},
 	)
 	var result *http.Response
 	var err error
-	rawRequest := `GET https://pkg.go.dev?search=std%20pkg&orderBy=date&exp=true
-orderBy=?name
-`
+	rawRequest := `GET https://pkg.go.dev?search=http%20template&orderBy=date
+orderBy=?name tag=?"standard library" a=?b`
 
 	request, err := app.ParseRequest(rawRequest)
 	if err != nil {

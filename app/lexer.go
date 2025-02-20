@@ -11,6 +11,7 @@ const (
 	HEADER       tokenType = "=:"
 	SEARCH_PARAM tokenType = "=?"
 	FORM_DATA    tokenType = "="
+	QUOTES       tokenType = "\""
 )
 
 type tokenType string
@@ -38,7 +39,7 @@ func (l lexer) peak(startingPosition, numberOfCharToEat int) string {
 func (l lexer) readUntilNextSeparator() string {
 	subInput := l.input[l.readPosition:]
 	closestSeparatorIndex := len(subInput)
-	separators := append(ignoredChars, string(HEADER), string(SEARCH_PARAM))
+	separators := append(ignoredChars, string(HEADER), string(SEARCH_PARAM), string(QUOTES))
 	for _, separator := range separators {
 		index := strings.Index(subInput, separator)
 		if index != -1 && index < closestSeparatorIndex {
@@ -53,6 +54,9 @@ func (l lexer) readUntilNextSeparator() string {
 }
 
 func (l lexer) nextCharIsToIgnore() bool {
+	if l.readPosition >= len(l.input) {
+		return false
+	}
 	nextChar := string(l.input[l.readPosition])
 	for _, separator := range ignoredChars {
 		if separator == nextChar {
@@ -70,15 +74,20 @@ func (l lexer) skipIgnoredChars() lexer {
 }
 
 func (l lexer) next() (lexer, bool) {
-	if l.readPosition >= len(l.input)-1 {
+	l = l.skipIgnoredChars()
+	if l.readPosition >= len(l.input) {
 		return l, true
 	}
-	l = l.skipIgnoredChars()
 
 	nextChar := string(l.input[l.readPosition])
 	readPositionIncrement := 1
 
 	switch nextChar {
+	case string(QUOTES):
+		l.tokens = append(l.tokens, token{
+			Type:    QUOTES,
+			Literal: nextChar,
+		})
 	case "=":
 		potentialParameter := l.peak(l.readPosition, 2)
 		if potentialParameter == string(HEADER) {
