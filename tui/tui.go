@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 
 	"github.com/ThomasFerro/gogetter/app"
 	"github.com/charmbracelet/bubbles/help"
@@ -129,14 +128,8 @@ func (m model) newRequest() (model, []tea.Cmd) {
 }
 
 func (m model) currentRequest() (app.Request, bool) {
-	// TODO: Extract and extend the parsing
-	input := strings.Split(m.requestTextarea.Value(), " ")
-	if len(input) < 2 {
-		return app.Request{}, false
-	}
-	method := input[0]
-	url := input[1]
-	return app.Request{Method: method, Url: url}, true
+	request, err := app.ParseRequest(m.requestTextarea.Value())
+	return request, err == nil
 }
 
 func (m model) executeRequest() (model, []tea.Cmd) {
@@ -152,7 +145,7 @@ func (m model) executeRequest() (model, []tea.Cmd) {
 		var resp *http.Response
 		var err error
 		var requestAndResponse app.RequestAndResponse
-		Gogetter, requestAndResponse, resp, err = Gogetter.Execute(request.Method, request.Url)
+		Gogetter, requestAndResponse, resp, err = Gogetter.Execute(request)
 		var response []byte
 
 		if resp != nil {
@@ -320,7 +313,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if !ok {
 					return m, nil
 				}
-				m.requestTextarea.SetValue(fmt.Sprintf("%s %s", selectedHistoryEntry.Method, selectedHistoryEntry.Url))
+				m.requestTextarea.SetValue(selectedHistoryEntry.Raw)
 			}
 
 			if m.bottomList == SavedRequestsBottomList {
@@ -328,7 +321,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if !ok {
 					return m, nil
 				}
-				m.requestTextarea.SetValue(fmt.Sprintf("%s %s", selectedSavedRequest.Method, selectedSavedRequest.Url))
+				m.requestTextarea.SetValue(selectedSavedRequest.Raw)
 			}
 			m.focusedArea = RequestArea
 			return m, m.requestTextarea.Focus()
