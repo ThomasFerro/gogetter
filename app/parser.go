@@ -2,8 +2,8 @@ package app
 
 import (
 	"errors"
-	"fmt"
 	"slices"
+	"strings"
 )
 
 var availableMethods = []string{"GET", "POST", "PUT", "DELETE"}
@@ -15,33 +15,20 @@ func extractMethod(lexer lexer) (string, error) {
 	return lexer.tokens[0].Literal, nil
 }
 
-func extractNextValue(requestAdditionalParameters []token, index int) (string, int) {
-	if index >= len(requestAdditionalParameters)-1 {
-		return "", index + 1
+type keyword string
+
+const (
+	HEADER       keyword = "=:"
+	SEARCH_PARAM keyword = "=?"
+	FORM_DATA    keyword = "="
+)
+
+func extractKeyValuePair(literal string, separator string) (key string, value string) {
+	split := strings.Split(literal, separator)
+	if strings.HasPrefix(split[1], "\"") && strings.HasSuffix(split[1], "\"") {
+		return split[0], split[1][1 : len(split[1])-1]
 	}
-	valueIndex := index + 1
-	literal := requestAdditionalParameters[valueIndex].Literal
-	if literal != string(QUOTES) {
-		return literal, valueIndex
-	}
-
-	valueInsideQuotes := ""
-	for {
-		valueIndex++
-
-		literal = requestAdditionalParameters[valueIndex].Literal
-		if literal == string(QUOTES) {
-			break
-		}
-
-		valueInsideQuotes = fmt.Sprintf("%v%v ", valueInsideQuotes, literal)
-
-		if valueIndex >= len(requestAdditionalParameters)-1 {
-			break
-		}
-	}
-
-	return valueInsideQuotes[:len(valueInsideQuotes)-1], valueIndex
+	return split[0], split[1]
 }
 
 func ParseRequest(input string) (Request, error) {
@@ -63,28 +50,17 @@ func ParseRequest(input string) (Request, error) {
 	request.SearchParams = SearchParams{}
 
 	requestAdditionalParameters := lexer.tokens[2:]
-	index := 0
-	for index < len(requestAdditionalParameters) {
-		token := requestAdditionalParameters[index]
-		if index == 0 || index >= len(requestAdditionalParameters) {
-			index++
+	for _, token := range requestAdditionalParameters {
+		if strings.Contains(token.Literal, string(HEADER)) {
+			key, value := extractKeyValuePair(token.Literal, string(HEADER))
+			request.Headers[key] = value
 			continue
 		}
-		if token.Type == HEADER {
-			header := requestAdditionalParameters[index-1].Literal
-			value := ""
-			value, index = extractNextValue(requestAdditionalParameters, index)
-			request.Headers[header] = value
-			continue
-		}
-		if token.Type == SEARCH_PARAM {
-			key := requestAdditionalParameters[index-1].Literal
-			value := ""
-			value, index = extractNextValue(requestAdditionalParameters, index)
+		if strings.Contains(token.Literal, string(SEARCH_PARAM)) {
+			key, value := extractKeyValuePair(token.Literal, string(SEARCH_PARAM))
 			request.SearchParams[key] = value
 			continue
 		}
-		index++
 	}
 
 	return request, nil

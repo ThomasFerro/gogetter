@@ -6,18 +6,7 @@ import (
 
 var ignoredChars = []string{" ", "\t", "\r", "\n"}
 
-const (
-	LITERAL      tokenType = "LITERAL"
-	HEADER       tokenType = "=:"
-	SEARCH_PARAM tokenType = "=?"
-	FORM_DATA    tokenType = "="
-	QUOTES       tokenType = "\""
-)
-
-type tokenType string
-
 type token struct {
-	Type    tokenType
 	Literal string
 }
 
@@ -37,20 +26,31 @@ func (l lexer) peak(startingPosition, numberOfCharToEat int) string {
 }
 
 func (l lexer) readUntilNextSeparator() string {
-	subInput := l.input[l.readPosition:]
-	closestSeparatorIndex := len(subInput)
-	separators := append(ignoredChars, string(HEADER), string(SEARCH_PARAM), string(QUOTES))
-	for _, separator := range separators {
-		index := strings.Index(subInput, separator)
-		if index != -1 && index < closestSeparatorIndex {
-			closestSeparatorIndex = index
+	input := l.input[l.readPosition:]
+	nextCharIndex := 0
+	for nextCharIndex < len(input) {
+		nextChar := input[nextCharIndex]
+		nextCharIndex = nextCharIndex + eatEverythingInsideQuotes(input[nextCharIndex:])
+		for _, ignoredChar := range ignoredChars {
+			if string(nextChar) == ignoredChar {
+				return l.input[l.readPosition : l.readPosition+nextCharIndex]
+			}
 		}
+		nextCharIndex++
 	}
-	if closestSeparatorIndex != -1 {
-		return subInput[:closestSeparatorIndex]
-	}
-	return subInput
 
+	return l.input[l.readPosition:]
+}
+
+func eatEverythingInsideQuotes(input string) (index int) {
+	if string(input[0]) != "\"" {
+		return 0
+	}
+	indexOfClosingQuote := strings.Index(input[1:], "\"")
+	if indexOfClosingQuote != -1 {
+		return indexOfClosingQuote + 1
+	}
+	return 0
 }
 
 func (l lexer) nextCharIsToIgnore() bool {
@@ -79,47 +79,11 @@ func (l lexer) next() (lexer, bool) {
 		return l, true
 	}
 
-	nextChar := string(l.input[l.readPosition])
-	readPositionIncrement := 1
-
-	switch nextChar {
-	case string(QUOTES):
-		l.tokens = append(l.tokens, token{
-			Type:    QUOTES,
-			Literal: nextChar,
-		})
-	case "=":
-		potentialParameter := l.peak(l.readPosition, 2)
-		if potentialParameter == string(HEADER) {
-			l.tokens = append(l.tokens, token{
-				Type:    HEADER,
-				Literal: potentialParameter,
-			})
-			readPositionIncrement = 2
-			break
-		}
-		if potentialParameter == string(SEARCH_PARAM) {
-			l.tokens = append(l.tokens, token{
-				Type:    SEARCH_PARAM,
-				Literal: potentialParameter,
-			})
-			readPositionIncrement = 2
-			break
-		}
-		literal := l.readUntilNextSeparator()
-		readPositionIncrement = len(literal)
-		l.tokens = append(l.tokens, token{
-			Type:    LITERAL,
-			Literal: literal,
-		})
-	default:
-		literal := l.readUntilNextSeparator()
-		readPositionIncrement = len(literal)
-		l.tokens = append(l.tokens, token{
-			Type:    LITERAL,
-			Literal: literal,
-		})
-	}
+	literal := l.readUntilNextSeparator()
+	readPositionIncrement := len(literal)
+	l.tokens = append(l.tokens, token{
+		Literal: literal,
+	})
 
 	l.readPosition += readPositionIncrement
 	return l, false

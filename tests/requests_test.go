@@ -36,9 +36,7 @@ func TestShouldSendSimpleRequest(t *testing.T) {
 // TODO: Save request with all parameters
 // TODO: History request with all parameters
 
-// TODO: Send request with search params
 // TODO: Send request with a json body
-// TODO: Send request with a multipart body
 
 func TestShouldSendARequestWithHeaders(t *testing.T) {
 	gogetter := tests.NewTestSetup(
@@ -89,6 +87,52 @@ func TestShouldSendARequestWithQueryParams(t *testing.T) {
 	var err error
 	rawRequest := `GET https://pkg.go.dev?search=http%20template&orderBy=date
 orderBy=?name tag=?"standard library" a=?b`
+
+	request, err := app.ParseRequest(rawRequest)
+	if err != nil {
+		t.Fatalf("request parsing failed: %v", err)
+	}
+	gogetter, _, result, err = gogetter.Execute(request)
+	if err != nil {
+		t.Fatalf("request execution failed: %v", err)
+	}
+	if result == nil {
+		t.Fatalf("no result")
+	}
+	defer result.Body.Close()
+	body, err := io.ReadAll(result.Body)
+	if err != nil {
+		t.Fatalf("result body read failed: %v", err)
+	}
+	if string(body) != "ok" {
+		t.Fatalf(`expected body to be "ok" but got %v`, string(body))
+	}
+}
+
+// TODO: Multiple values for same key
+func TestShouldSendARequestWithMultipartBody(t *testing.T) {
+	gogetter := tests.NewTestSetup(
+		t,
+		tests.SubstitutedRequest{
+			Request: app.Request{
+				Method: "GET",
+				Url:    "https://pkg.go.dev",
+				MultipartBody: app.MultipartBody{
+					"key":       "value",
+					"secondKey": "second value",
+				},
+				Headers: app.Headers{
+					"Content-Type": "multipart/form-data",
+				},
+			},
+			Response:     "ok",
+			ResponseCode: 200,
+		},
+	)
+	var result *http.Response
+	var err error
+	rawRequest := `GET https://pkg.go.dev
+key=value secondKey="second value"`
 
 	request, err := app.ParseRequest(rawRequest)
 	if err != nil {

@@ -1,7 +1,10 @@
 package app
 
 import (
+	"bytes"
 	"fmt"
+	"io"
+	"mime/multipart"
 	"net/http"
 )
 
@@ -11,13 +14,15 @@ type HttpClient interface {
 
 type Headers map[string]string
 type SearchParams map[string]string
+type MultipartBody map[string]string
 
 type Request struct {
-	Raw          string
-	Method       string
-	Url          string
-	Headers      Headers
-	SearchParams SearchParams
+	Raw           string
+	Method        string
+	Url           string
+	Headers       Headers
+	SearchParams  SearchParams
+	MultipartBody MultipartBody
 }
 
 func (r Request) FilterValue() string { return fmt.Sprintf("%v %v", r.Method, r.Url) }
@@ -44,11 +49,36 @@ type Gogetter struct {
 func (g Gogetter) History() History             { return g.history }
 func (g Gogetter) SavedRequests() SavedRequests { return g.savedRequests }
 
+func getBody() (bodyReader io.Reader, contentType string, err error) {
+	var buffer bytes.Buffer
+	writer := multipart.NewWriter(&buffer)
+	err = writer.WriteField("key", "value")
+	if err != nil {
+		return nil, "", err
+	}
+	err = writer.WriteField("secondKey", "second value")
+	if err != nil {
+		return nil, "", err
+	}
+	writer.Close()
+	return &buffer, "multipart/form-data", nil
+}
+
 func (g Gogetter) Execute(request Request) (Gogetter, RequestAndResponse, *http.Response, error) {
-	req, err := http.NewRequest(request.Method, request.Url, nil)
+	body, contentType, err := getBody()
+	if err != nil {
+		return g, RequestAndResponse{}, nil, fmt.Errorf("request body error: %w", err)
+	}
+	req, err := http.NewRequest(request.Method, request.Url, body)
+	if err != nil {
+		return g, RequestAndResponse{}, nil, fmt.Errorf("new request error: %w", err)
+	}
 	for header, value := range request.Headers {
 		req.Header.Add(header, value)
 	}
+
+	req.Header.Add("Content-Type", contentType)
+
 	q := req.URL.Query()
 	for key, value := range request.SearchParams {
 		q.Set(key, value)
@@ -56,9 +86,7 @@ func (g Gogetter) Execute(request Request) (Gogetter, RequestAndResponse, *http.
 	if len(request.SearchParams) > 0 {
 		req.URL.RawQuery = q.Encode()
 	}
-	if err != nil {
-		return g, RequestAndResponse{}, nil, fmt.Errorf("new request error: %w", err)
-	}
+
 	response, err := g.client.Do(req)
 	if err != nil {
 		return g, RequestAndResponse{}, nil, fmt.Errorf("request execution error: %w", err)
