@@ -49,23 +49,26 @@ type Gogetter struct {
 func (g Gogetter) History() History             { return g.history }
 func (g Gogetter) SavedRequests() SavedRequests { return g.savedRequests }
 
-func getBody() (bodyReader io.Reader, contentType string, err error) {
-	var buffer bytes.Buffer
-	writer := multipart.NewWriter(&buffer)
-	err = writer.WriteField("key", "value")
-	if err != nil {
-		return nil, "", err
+func getBody(request Request) (bodyReader io.Reader, contentType string, err error) {
+	if len(request.MultipartBody) == 0 {
+		return nil, "", nil
 	}
-	err = writer.WriteField("secondKey", "second value")
-	if err != nil {
-		return nil, "", err
+	buffer := &bytes.Buffer{}
+	writer := multipart.NewWriter(buffer)
+	defer writer.Close()
+
+	for key, value := range request.MultipartBody {
+		err = writer.WriteField(key, value)
+
+		if err != nil {
+			return nil, "", err
+		}
 	}
-	writer.Close()
-	return &buffer, "multipart/form-data", nil
+	return buffer, writer.FormDataContentType(), nil
 }
 
 func (g Gogetter) Execute(request Request) (Gogetter, RequestAndResponse, *http.Response, error) {
-	body, contentType, err := getBody()
+	body, contentType, err := getBody(request)
 	if err != nil {
 		return g, RequestAndResponse{}, nil, fmt.Errorf("request body error: %w", err)
 	}

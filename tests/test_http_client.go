@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"mime/multipart"
 	"net/http"
 	"strings"
 	"testing"
@@ -46,7 +47,22 @@ func (t TestHttpClient) Do(req *http.Request) (*http.Response, error) {
 	return substitutedRequests.ToHttpResponse(), nil
 }
 
+func extractMultipartForm(req *http.Request) (*multipart.Form, error) {
+	err := req.ParseMultipartForm(100_000)
+	if err == http.ErrNotMultipart {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("request multipart form parsing error: %w", err)
+	}
+	return req.MultipartForm, nil
+}
+
 func (t TestHttpClient) foundSubstitutedRequest(req *http.Request) (SubstitutedRequest, error) {
+	multipartForm, err := extractMultipartForm(req)
+	if err != nil {
+		return SubstitutedRequest{}, fmt.Errorf("multipart form extraction error: %w", err)
+	}
 	for index, substitutedRequest := range t.SubstitutedRequests {
 		if substitutedRequest.Method != req.Method || substitutedRequest.Url != req.URL.String() {
 			slog.Info("substituted request not matching", slog.Any("index", index), slog.Any("substitute method", substitutedRequest.Method), slog.Any("substitute url", substitutedRequest.Url), slog.Any("request method", req.Method), slog.Any("request url", req.URL.String()))
@@ -66,12 +82,12 @@ func (t TestHttpClient) foundSubstitutedRequest(req *http.Request) (SubstitutedR
 		}
 
 		allMultipartFormElementsAreMatching := true
-		if len(substitutedRequest.MultipartBody) > 0 && req.MultipartForm == nil {
+		if len(substitutedRequest.MultipartBody) > 0 && (multipartForm == nil || len(multipartForm.Value) == 0) {
 			slog.Info("substituted request not matching", slog.Any("index", index), slog.Any("number of expected elements in multipart body", len(substitutedRequest.MultipartBody)))
 			continue
 		}
 		for formElement, value := range substitutedRequest.MultipartBody {
-			requestMultipartFormElement := req.MultipartForm.Value[formElement]
+			requestMultipartFormElement := multipartForm.Value[formElement]
 
 			if len(requestMultipartFormElement) != 1 || requestMultipartFormElement[0] != value {
 				slog.Info("substituted request not matching", slog.Any("index", index), slog.Any("form key", formElement), slog.Any("substitute form value", value), slog.Any("request form value", requestMultipartFormElement))

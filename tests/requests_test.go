@@ -110,6 +110,7 @@ orderBy=?name tag=?"standard library" a=?b`
 }
 
 // TODO: Multiple values for same key
+// TODO: Only one body element is sent ?
 func TestShouldSendARequestWithMultipartBody(t *testing.T) {
 	gogetter := tests.NewTestSetup(
 		t,
@@ -120,9 +121,6 @@ func TestShouldSendARequestWithMultipartBody(t *testing.T) {
 				MultipartBody: app.MultipartBody{
 					"key":       "value",
 					"secondKey": "second value",
-				},
-				Headers: app.Headers{
-					"Content-Type": "multipart/form-data",
 				},
 			},
 			Response:     "ok",

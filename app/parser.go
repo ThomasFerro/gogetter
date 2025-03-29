@@ -8,11 +8,11 @@ import (
 
 var availableMethods = []string{"GET", "POST", "PUT", "DELETE"}
 
-func extractMethod(lexer lexer) (string, error) {
-	if slices.Index(availableMethods, lexer.tokens[0].Literal) == -1 {
+func extractMethod(firstInputElement string) (string, error) {
+	if slices.Index(availableMethods, firstInputElement) == -1 {
 		return "", errors.New("invalid request, provide a valid method")
 	}
-	return lexer.tokens[0].Literal, nil
+	return firstInputElement, nil
 }
 
 type keyword string
@@ -31,35 +31,85 @@ func extractKeyValuePair(literal string, separator string) (key string, value st
 	return split[0], split[1]
 }
 
+var separators = []string{" ", "\t", "\r", "\n"}
+
+func eatEverythingInsideQuotes(input string) (index int) {
+	if string(input[0]) != "\"" {
+		return 0
+	}
+	indexOfClosingQuote := strings.Index(input[1:], "\"")
+	if indexOfClosingQuote != -1 {
+		return indexOfClosingQuote + 1
+	}
+	return 0
+}
+
+func readUntilNextSeparator(input string) string {
+	nextCharIndex := 0
+	for nextCharIndex < len(input) {
+		nextChar := input[nextCharIndex]
+		nextCharIndex = nextCharIndex + eatEverythingInsideQuotes(input[nextCharIndex:])
+		if slices.Contains(separators, string(nextChar)) {
+			return input[:nextCharIndex]
+		}
+		nextCharIndex++
+	}
+
+	return input
+}
+
+func splitRequestInput(input string) []string {
+	loop := 0
+	splitInput := []string{}
+	readPosition := 0
+	for readPosition < len(input) && loop < 10 {
+		loop++
+		restOfInput := input[readPosition:]
+		inputElement := readUntilNextSeparator(restOfInput)
+		splitInput = append(splitInput, inputElement)
+		readPosition += len(inputElement) + 1
+	}
+	return splitInput
+}
+
 func ParseRequest(input string) (Request, error) {
-	lexer := lexicalAnalysis(input)
 	request := Request{
 		Raw: input,
 	}
-	if len(lexer.tokens) < 2 {
+	inputElements := splitRequestInput(input)
+	if len(inputElements) < 2 {
 		return request, errors.New("invalid request, provide at least a method and the url")
 	}
 
-	method, err := extractMethod(lexer)
+	method, err := extractMethod(inputElements[0])
 	if err != nil {
 		return request, err
 	}
 	request.Method = method
-	request.Url = lexer.tokens[1].Literal
+	request.Url = inputElements[1]
 	request.Headers = Headers{}
 	request.SearchParams = SearchParams{}
+	request.MultipartBody = MultipartBody{}
 
-	requestAdditionalParameters := lexer.tokens[2:]
-	for _, token := range requestAdditionalParameters {
-		if strings.Contains(token.Literal, string(HEADER)) {
-			key, value := extractKeyValuePair(token.Literal, string(HEADER))
-			request.Headers[key] = value
-			continue
-		}
-		if strings.Contains(token.Literal, string(SEARCH_PARAM)) {
-			key, value := extractKeyValuePair(token.Literal, string(SEARCH_PARAM))
-			request.SearchParams[key] = value
-			continue
+	if len(inputElements) > 2 {
+		requestAdditionalParameters := inputElements[2:]
+		for _, additionalParameter := range requestAdditionalParameters {
+			if strings.Contains(additionalParameter, string(HEADER)) {
+				key, value := extractKeyValuePair(additionalParameter, string(HEADER))
+				request.Headers[key] = value
+				continue
+			}
+			if strings.Contains(additionalParameter, string(SEARCH_PARAM)) {
+				key, value := extractKeyValuePair(additionalParameter, string(SEARCH_PARAM))
+				request.SearchParams[key] = value
+				continue
+			}
+			if strings.Contains(additionalParameter, string(FORM_DATA)) {
+				key, value := extractKeyValuePair(additionalParameter, string(FORM_DATA))
+				request.MultipartBody[key] = value
+				continue
+			}
+
 		}
 	}
 
