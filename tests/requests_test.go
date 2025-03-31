@@ -36,8 +36,6 @@ func TestShouldSendSimpleRequest(t *testing.T) {
 // TODO: Save request with all parameters
 // TODO: History request with all parameters
 
-// TODO: Send request with a json body
-
 func TestShouldSendARequestWithHeaders(t *testing.T) {
 	gogetter := tests.NewTestSetup(
 		t,
@@ -109,8 +107,110 @@ orderBy=?name tag=?"standard library" a=?b`
 	}
 }
 
-// TODO: Multiple values for same key
-// TODO: Only one body element is sent ?
+func TestShouldSendARequestWithJsonObjectBody(t *testing.T) {
+	gogetter := tests.NewTestSetup(
+		t,
+		tests.SubstitutedRequest{
+			Request: app.Request{
+				Method: "GET",
+				Url:    "https://pkg.go.dev",
+				Headers: app.Headers{
+					"Content-Type": "application/json",
+				},
+				JsonBody: `{
+  "key": "value",
+  "key2": { 
+    "2_1": []
+  }
+}`,
+			},
+			Response:     "ok",
+			ResponseCode: 200,
+		},
+	)
+	var result *http.Response
+	var err error
+	rawRequest := `GET https://pkg.go.dev
+{
+  "key": "value",
+  "key2": { 
+    "2_1": []
+  }
+}`
+
+	request, err := app.ParseRequest(rawRequest)
+	if err != nil {
+		t.Fatalf("request parsing failed: %v", err)
+	}
+	gogetter, _, result, err = gogetter.Execute(request)
+	if err != nil {
+		t.Fatalf("request execution failed: %v", err)
+	}
+	if result == nil {
+		t.Fatalf("no result")
+	}
+	defer result.Body.Close()
+	body, err := io.ReadAll(result.Body)
+	if err != nil {
+		t.Fatalf("result body read failed: %v", err)
+	}
+	if string(body) != "ok" {
+		t.Fatalf(`expected body to be "ok" but got %v`, string(body))
+	}
+}
+
+func TestShouldSendARequestWithJsonArrayBody(t *testing.T) {
+	gogetter := tests.NewTestSetup(
+		t,
+		tests.SubstitutedRequest{
+			Request: app.Request{
+				Method: "GET",
+				Url:    "https://pkg.go.dev",
+				Headers: app.Headers{
+					"Content-Type": "application/json",
+				},
+				JsonBody: `[
+  "value",
+  { 
+    "2_1": []
+  }
+]`,
+			},
+			Response:     "ok",
+			ResponseCode: 200,
+		},
+	)
+	var result *http.Response
+	var err error
+	rawRequest := `GET https://pkg.go.dev
+[
+  "value",
+  { 
+    "2_1": []
+  }
+]`
+
+	request, err := app.ParseRequest(rawRequest)
+	if err != nil {
+		t.Fatalf("request parsing failed: %v", err)
+	}
+	gogetter, _, result, err = gogetter.Execute(request)
+	if err != nil {
+		t.Fatalf("request execution failed: %v", err)
+	}
+	if result == nil {
+		t.Fatalf("no result")
+	}
+	defer result.Body.Close()
+	body, err := io.ReadAll(result.Body)
+	if err != nil {
+		t.Fatalf("result body read failed: %v", err)
+	}
+	if string(body) != "ok" {
+		t.Fatalf(`expected body to be "ok" but got %v`, string(body))
+	}
+}
+
 func TestShouldSendARequestWithMultipartBody(t *testing.T) {
 	gogetter := tests.NewTestSetup(
 		t,

@@ -18,9 +18,11 @@ func extractMethod(firstInputElement string) (string, error) {
 type keyword string
 
 const (
-	HEADER       keyword = "=:"
-	SEARCH_PARAM keyword = "=?"
-	FORM_DATA    keyword = "="
+	HEADER            keyword = "=:"
+	SEARCH_PARAM      keyword = "=?"
+	FORM_DATA         keyword = "="
+	JSON_OBJECT_START keyword = "{"
+	JSON_ARRAY_START keyword = "["
 )
 
 func extractKeyValuePair(literal string, separator string) (key string, value string) {
@@ -59,11 +61,9 @@ func readUntilNextSeparator(input string) string {
 }
 
 func splitRequestInput(input string) []string {
-	loop := 0
 	splitInput := []string{}
 	readPosition := 0
-	for readPosition < len(input) && loop < 10 {
-		loop++
+	for readPosition < len(input) {
 		restOfInput := input[readPosition:]
 		inputElement := readUntilNextSeparator(restOfInput)
 		splitInput = append(splitInput, inputElement)
@@ -109,7 +109,16 @@ func ParseRequest(input string) (Request, error) {
 				request.MultipartBody[key] = value
 				continue
 			}
-
+			if strings.HasPrefix(additionalParameter, string(JSON_ARRAY_START)) {
+				index := strings.Index(input, string(JSON_ARRAY_START))
+				request.JsonBody = JsonBody(input[index:])
+				break
+			}
+			if strings.HasPrefix(additionalParameter, string(JSON_OBJECT_START)) {
+				index := strings.Index(input, string(JSON_OBJECT_START))
+				request.JsonBody = JsonBody(input[index:])
+				break
+			}
 		}
 	}
 

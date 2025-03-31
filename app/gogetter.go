@@ -6,6 +6,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"strings"
 )
 
 type HttpClient interface {
@@ -15,6 +16,7 @@ type HttpClient interface {
 type Headers map[string]string
 type SearchParams map[string]string
 type MultipartBody map[string]string
+type JsonBody string
 
 type Request struct {
 	Raw           string
@@ -23,6 +25,7 @@ type Request struct {
 	Headers       Headers
 	SearchParams  SearchParams
 	MultipartBody MultipartBody
+	JsonBody      JsonBody
 }
 
 func (r Request) FilterValue() string { return fmt.Sprintf("%v %v", r.Method, r.Url) }
@@ -49,13 +52,9 @@ type Gogetter struct {
 func (g Gogetter) History() History             { return g.history }
 func (g Gogetter) SavedRequests() SavedRequests { return g.savedRequests }
 
-func getBody(request Request) (bodyReader io.Reader, contentType string, err error) {
-	if len(request.MultipartBody) == 0 {
-		return nil, "", nil
-	}
+func getMultipartBody(request Request) (bodyReader io.Reader, contentType string, err error) {
 	buffer := &bytes.Buffer{}
 	writer := multipart.NewWriter(buffer)
-	defer writer.Close()
 
 	for key, value := range request.MultipartBody {
 		err = writer.WriteField(key, value)
@@ -64,7 +63,28 @@ func getBody(request Request) (bodyReader io.Reader, contentType string, err err
 			return nil, "", err
 		}
 	}
+
+	err = writer.Close()
+	if err != nil {
+		return nil, "", err
+	}
+
 	return buffer, writer.FormDataContentType(), nil
+}
+
+func getJsonBody(request Request) (bodyReader io.Reader, contentType string, err error) {
+	return strings.NewReader(string(request.JsonBody)), "application/json", nil
+}
+
+func getBody(request Request) (bodyReader io.Reader, contentType string, err error) {
+	if len(request.MultipartBody) != 0 {
+		return getMultipartBody(request)
+	}
+	if len(request.JsonBody) != 0 {
+		return getJsonBody(request)
+	}
+
+	return nil, "", nil
 }
 
 func (g Gogetter) Execute(request Request) (Gogetter, RequestAndResponse, *http.Response, error) {

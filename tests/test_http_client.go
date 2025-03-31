@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"mime"
 	"mime/multipart"
 	"net/http"
 	"strings"
@@ -47,11 +48,40 @@ func (t TestHttpClient) Do(req *http.Request) (*http.Response, error) {
 	return substitutedRequests.ToHttpResponse(), nil
 }
 
+func extractJsonBody(req *http.Request) (string, error) {
+	header := req.Header.Get("Content-Type")
+	if header == "" {
+		return "", nil
+	}
+	mediaType, _, err := mime.ParseMediaType(header)
+
+	if err != nil {
+		return "", fmt.Errorf("request mime parsing error: %w", err)
+	}
+	if mediaType != "application/json" || req.Body == nil {
+		return "", nil
+	}
+	defer req.Body.Close()
+	content, err := io.ReadAll(req.Body)
+	if err != nil {
+		return "", fmt.Errorf("request body read error: %w", err)
+	}
+	return string(content), nil
+}
+
 func extractMultipartForm(req *http.Request) (*multipart.Form, error) {
-	err := req.ParseMultipartForm(100_000)
-	if err == http.ErrNotMultipart {
+	header := req.Header.Get("Content-Type")
+	if header == "" {
 		return nil, nil
 	}
+	mediaType, _, err := mime.ParseMediaType(header)
+	if err != nil {
+		return nil, fmt.Errorf("request media type parsing error: %w", err)
+	}
+	if !strings.HasPrefix(mediaType, "multipart/") {
+		return nil, nil
+	}
+	err = req.ParseMultipartForm(100_000)
 	if err != nil {
 		return nil, fmt.Errorf("request multipart form parsing error: %w", err)
 	}
@@ -59,6 +89,10 @@ func extractMultipartForm(req *http.Request) (*multipart.Form, error) {
 }
 
 func (t TestHttpClient) foundSubstitutedRequest(req *http.Request) (SubstitutedRequest, error) {
+	jsonBody, err := extractJsonBody(req)
+	if err != nil {
+		return SubstitutedRequest{}, fmt.Errorf("json body extraction error: %w", err)
+	}
 	multipartForm, err := extractMultipartForm(req)
 	if err != nil {
 		return SubstitutedRequest{}, fmt.Errorf("multipart form extraction error: %w", err)
@@ -78,6 +112,11 @@ func (t TestHttpClient) foundSubstitutedRequest(req *http.Request) (SubstitutedR
 			}
 		}
 		if !allHeadersAreMatching {
+			continue
+		}
+
+		if jsonBody != "" && jsonBody != string(substitutedRequest.JsonBody) {
+			slog.Info("substituted request not matching", slog.Any("index", index), slog.Any("expected json body", substitutedRequest.JsonBody), slog.Any("actual json body", jsonBody))
 			continue
 		}
 
