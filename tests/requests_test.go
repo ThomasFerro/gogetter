@@ -33,9 +33,6 @@ func TestShouldSendSimpleRequest(t *testing.T) {
 	}
 }
 
-// TODO: Save request with all parameters
-// TODO: History request with all parameters
-
 func TestShouldSendARequestWithHeaders(t *testing.T) {
 	gogetter := tests.NewTestSetup(
 		t,

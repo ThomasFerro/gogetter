@@ -54,7 +54,7 @@ func TestShouldSaveRequest(t *testing.T) {
 		t.Fatalf("new gogetter failed: %v", err)
 	}
 
-	request, err := app.ParseRequest("POST https:/my-api.com/posts")
+	request, err := app.ParseRequest("POST https:/my-api.com/posts Expires=:\"Wed, 21 Oct 2015 07:28:00 GMT\" {\"key\":\"value\"}")
 	if err != nil {
 		t.Fatalf("request parsing failed: %v", err)
 	}
@@ -71,7 +71,7 @@ func TestShouldSaveRequest(t *testing.T) {
 		savedRequests[1].Url != "https:/my-api.com/posts" {
 		t.Fatalf("in memory saved requests not filled correctly: %v", savedRequests)
 	}
-	expectedWrite := `["GET https://pkg.go.dev","POST https:/my-api.com/posts"]`
+	expectedWrite := `["GET https://pkg.go.dev","POST https:/my-api.com/posts Expires=:\"Wed, 21 Oct 2015 07:28:00 GMT\" {\"key\":\"value\"}"]`
 	actualSavedRequests, err := os.ReadFile(savedRequestsFileName)
 	if err != nil {
 		t.Fatalf("saved requests file reading failed: %v", err)
