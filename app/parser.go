@@ -2,8 +2,10 @@ package app
 
 import (
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
+	"text/template"
 )
 
 var availableMethods = []string{"GET", "POST", "PUT", "DELETE"}
@@ -22,7 +24,7 @@ const (
 	SEARCH_PARAM      keyword = "=?"
 	FORM_DATA         keyword = "="
 	JSON_OBJECT_START keyword = "{"
-	JSON_ARRAY_START keyword = "["
+	JSON_ARRAY_START  keyword = "["
 )
 
 func extractKeyValuePair(literal string, separator string) (key string, value string) {
@@ -72,7 +74,32 @@ func splitRequestInput(input string) []string {
 	return splitInput
 }
 
-func ParseRequest(input string) (Request, error) {
+func executeTemplate(input string, templateData ...any) (string, error) {
+	if len(templateData) > 1 {
+		return input, fmt.Errorf("up to one template data is allowed but received %v", len(templateData))
+	}
+	tmpl, err := template.New("request").Parse(input)
+	if err != nil {
+		return input, fmt.Errorf("template parsing error: %w", err)
+	}
+	builder := strings.Builder{}
+	var data any = struct{}{}
+	if len(templateData) == 1 {
+		data = templateData[0]
+	}
+	err = tmpl.Execute(&builder, data)
+	if err != nil {
+		return input, err
+	}
+	return builder.String(), nil
+}
+
+func ParseRequest(input string, templateData ...any) (Request, error) {
+	input, err := executeTemplate(input, templateData...)
+	if err != nil {
+		return Request{}, err
+	}
+
 	request := Request{
 		Raw: input,
 	}
