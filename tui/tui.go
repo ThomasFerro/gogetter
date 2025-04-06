@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -29,6 +30,7 @@ type focusedArea int
 
 const (
 	RequestArea focusedArea = iota
+	VariablesArea
 	ResponseArea
 	BottomListArea
 )
@@ -46,6 +48,7 @@ type model struct {
 	keymap            keymap
 	help              help.Model
 	requestTextarea   textarea.Model
+	variablesTextarea textarea.Model
 	responseTextarea  textarea.Model
 	history           list.Model
 	savedRequests     list.Model
@@ -59,12 +62,15 @@ func NewModel(gogetter app.Gogetter) model {
 	Gogetter = gogetter
 	requestTextarea := newTextarea()
 	requestTextarea.Placeholder = "Type your request"
+	variablesTextarea := newTextarea()
+	variablesTextarea.Placeholder = "Add variables as a JSON object if needed"
 	history := newHistoryList(gogetter.History())
 	savedRequests := newSavedRequestsList(gogetter.SavedRequests())
 	m := model{
-		requestTextarea:  requestTextarea,
-		responseTextarea: newTextarea(),
-		help:             help.New(),
+		requestTextarea:   requestTextarea,
+		variablesTextarea: variablesTextarea,
+		responseTextarea:  newTextarea(),
+		help:              help.New(),
 		keymap: keymap{
 			next: key.NewBinding(
 				key.WithKeys("tab"),
@@ -127,9 +133,22 @@ func (m model) newRequest() (model, []tea.Cmd) {
 	}}
 }
 
-func (m model) currentRequest() (app.Request, bool) {
+func (m model) currentRequest() (app.Request, error) {
 	request, err := app.ParseRequest(m.requestTextarea.Value())
-	return request, err == nil
+	return request, err
+}
+
+func (m model) currentTemplatedRequest() (app.Request, error) {
+	var data any = nil
+	variables := m.variablesTextarea.Value()
+	if variables != "" {
+		err := json.Unmarshal([]byte(variables), &data)
+		if err != nil {
+			return app.Request{}, fmt.Errorf("variable parsing error: %w", err)
+		}
+	}
+	request, err := app.ParseRequest(m.requestTextarea.Value(), app.TemplatedRequestOption{Data: data})
+	return request, err
 }
 
 func (m model) executeRequest() (model, []tea.Cmd) {
@@ -138,12 +157,11 @@ func (m model) executeRequest() (model, []tea.Cmd) {
 	}
 	m.ongoingRequest = true
 	return m, []tea.Cmd{func() tea.Msg {
-		request, ok := m.currentRequest()
-		if !ok {
-			return nil
+		request, err := m.currentTemplatedRequest()
+		if err != nil {
+			return responseMsg{err: err, requestAndResponse: app.RequestAndResponse{}, responseBody: ""}
 		}
 		var resp *http.Response
-		var err error
 		var requestAndResponse app.RequestAndResponse
 		Gogetter, requestAndResponse, resp, err = Gogetter.Execute(request)
 		var response []byte
@@ -173,8 +191,14 @@ func (m model) SwitchFocus(next bool) (model, []tea.Cmd) {
 
 func (m model) FocusPreviousTab() (model, []tea.Cmd) {
 	if m.focusedArea == ResponseArea {
-		m.focusedArea = RequestArea
+		m.focusedArea = VariablesArea
 		m.responseTextarea.Blur()
+		return m, []tea.Cmd{m.variablesTextarea.Focus()}
+	}
+
+	if m.focusedArea == VariablesArea {
+		m.focusedArea = RequestArea
+		m.variablesTextarea.Blur()
 		return m, []tea.Cmd{m.requestTextarea.Focus()}
 	}
 
@@ -195,8 +219,14 @@ func (m model) FocusPreviousTab() (model, []tea.Cmd) {
 
 func (m model) FocusNextTab() (model, []tea.Cmd) {
 	if m.focusedArea == RequestArea {
-		m.focusedArea = ResponseArea
+		m.focusedArea = VariablesArea
 		m.requestTextarea.Blur()
+		return m, []tea.Cmd{m.variablesTextarea.Focus()}
+	}
+
+	if m.focusedArea == VariablesArea {
+		m.focusedArea = ResponseArea
+		m.variablesTextarea.Blur()
 		return m, []tea.Cmd{m.responseTextarea.Focus()}
 	}
 
@@ -235,6 +265,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.focusedArea = BottomListArea
 				m.responseTextarea.Blur()
 				m.requestTextarea.Blur()
+				m.variablesTextarea.Blur()
 				return m, nil
 			}
 			if m.focusedArea == BottomListArea {
@@ -255,6 +286,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.focusedArea = BottomListArea
 				m.responseTextarea.Blur()
 				m.requestTextarea.Blur()
+				m.variablesTextarea.Blur()
 				return m, nil
 			}
 			if m.focusedArea == BottomListArea {
@@ -269,11 +301,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, executeRequestCommands...)
 
 		case key.Matches(msg, m.keymap.save):
-			request, ok := m.currentRequest()
-			if !ok {
-				break
+			request, err := m.currentRequest()
+			if err != nil {
+				m.responseTextarea.SetValue(fmt.Sprintf("request saving error: %s", err))
 			}
-			var err error
 			Gogetter, err = Gogetter.SaveRequest(request)
 			if err != nil {
 				m.responseTextarea.SetValue(fmt.Sprintf("request saving error: %s", err))
@@ -356,6 +387,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		newModel, cmd := m.requestTextarea.Update(msg)
 		m.requestTextarea = newModel
 		cmds = append(cmds, cmd)
+		newModel, cmd = m.variablesTextarea.Update(msg)
+		m.variablesTextarea = newModel
+		cmds = append(cmds, cmd)
 	}
 	if m.focusedArea == BottomListArea {
 		if m.bottomList == HistoryBottomList {
@@ -381,7 +415,9 @@ func (m *model) sizeInputs() {
 		m.savedRequests.SetWidth(m.width)
 	}
 	m.requestTextarea.SetWidth(m.width / 2)
-	m.requestTextarea.SetHeight(height)
+	m.requestTextarea.SetHeight(height/2 - 1)
+	m.variablesTextarea.SetWidth(m.width / 2)
+	m.variablesTextarea.SetHeight(height/2 - 1)
 	m.responseTextarea.SetWidth(m.width / 2)
 	m.responseTextarea.SetHeight(height)
 }
@@ -393,7 +429,7 @@ func (m model) View() string {
 		m.keymap.toggleHistory,
 		m.keymap.toggleSavedRequests,
 	}
-	if m.focusedArea == RequestArea || m.focusedArea == ResponseArea {
+	if m.focusedArea == RequestArea || m.focusedArea == ResponseArea || m.focusedArea == VariablesArea {
 		displayedBindingHelps = append([]key.Binding{
 			m.keymap.execute,
 			m.keymap.save,
@@ -408,7 +444,8 @@ func (m model) View() string {
 	help := m.help.ShortHelpView(displayedBindingHelps)
 
 	var views []string
-	views = append(views, m.requestTextarea.View())
+	requestView := lipgloss.JoinVertical(lipgloss.Left, m.requestTextarea.View(), m.variablesTextarea.View())
+	views = append(views, requestView)
 	views = append(views, m.responseTextarea.View())
 
 	view := lipgloss.JoinHorizontal(lipgloss.Top, views...) + "\n\n"

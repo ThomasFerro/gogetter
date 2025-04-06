@@ -20,7 +20,10 @@ func TestShouldSendTemplatedRequest(t *testing.T) {
 	}{
 		Id: "123",
 	}
-	request, err := app.ParseRequest("GET https://pkg.go.dev/{{.Id}}", templateData)
+	templateOption := app.TemplatedRequestOption{
+		Data: templateData,
+	}
+	request, err := app.ParseRequest("GET https://pkg.go.dev/{{.Id}}", templateOption)
 	if err != nil {
 		t.Fatalf("request parsing failed: %v", err)
 	}

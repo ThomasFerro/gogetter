@@ -74,30 +74,35 @@ func splitRequestInput(input string) []string {
 	return splitInput
 }
 
-func executeTemplate(input string, templateData ...any) (string, error) {
-	if len(templateData) > 1 {
-		return input, fmt.Errorf("up to one template data is allowed but received %v", len(templateData))
-	}
+type RequestParsingOption interface {
+	Apply(input string) (string, error)
+}
+
+type TemplatedRequestOption struct {
+	Data any
+}
+
+func (o TemplatedRequestOption) Apply(input string) (string, error) {
 	tmpl, err := template.New("request").Parse(input)
 	if err != nil {
 		return input, fmt.Errorf("template parsing error: %w", err)
 	}
 	builder := strings.Builder{}
-	var data any = struct{}{}
-	if len(templateData) == 1 {
-		data = templateData[0]
-	}
-	err = tmpl.Execute(&builder, data)
+	err = tmpl.Execute(&builder, o.Data)
 	if err != nil {
 		return input, err
 	}
 	return builder.String(), nil
+
 }
 
-func ParseRequest(input string, templateData ...any) (Request, error) {
-	input, err := executeTemplate(input, templateData...)
-	if err != nil {
-		return Request{}, err
+func ParseRequest(input string, options ...RequestParsingOption) (Request, error) {
+	var err error
+	for _, option := range options {
+		input, err = option.Apply(input)
+		if err != nil {
+			return Request{}, err
+		}
 	}
 
 	request := Request{
